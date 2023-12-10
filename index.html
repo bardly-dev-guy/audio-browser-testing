@@ -51,10 +51,16 @@
     </div>
 </main>
 <script>
-    const audioElemNormal = new Audio('sample.mp3');
-    const audioElemWeb = new Audio('sample.mp3');
-    const audioElemGain = new Audio('sample.mp3');
-    const audioElemFade = new Audio('sample.mp3');
+    function* audioElements() {
+        while(true) {
+            let audio = new Audio('sample.mp3');
+            audio.loop = true;
+            audio.crossOrigin = 'anonymous';
+            yield audio;
+        }
+    }
+
+    const [audioElemNormal, audioElemWeb, audioElemGain, audioElemFade] = audioElements()
 
     let context = undefined;
     let fadeGain = undefined;
