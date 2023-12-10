@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Audio Tester</title>
+    <style>
+        body {
+            font-family: sans-serif;
+        }
+        main {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .player {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            width: 250px;
+            padding: 10px;
+            margin-bottom: 20px;
+            border: 1px solid gray;
+            box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.25);
+        }
+        .player > button {
+            width: 50px;
+        }
+    </style>
+</head>
+<body>
+<main>
+    <div class="player">
+        <div>Plain audio element</div>
+        <button id="play-normal">Play</button>
+    </div>
+    <div class="player">
+        <div>Web audio API</div>
+        <button id="play-web">Play</button>
+    </div>
+    <div class="player">
+        <div>Quiet node</div>
+        <button id="play-gain">Play</button>
+    </div>
+    <div class="player">
+        <div>With fade</div>
+        <button id="play-fade">Play</button>
+    </div>
+</main>
+<script>
+    const audioElemNormal = new Audio('sample.mp3');
+    const audioElemWeb = new Audio('sample.mp3');
+    const audioElemGain = new Audio('sample.mp3');
+    const audioElemFade = new Audio('sample.mp3');
+
+    let context = undefined;
+    let fadeGain = undefined;
+
+    function getContext() {
+        if (context)
+            return context;
+
+        context = new AudioContext();
+        const webSource = context.createMediaElementSource(audioElemWeb);
+        webSource.connect(context.destination);
+
+        const gainSource = context.createMediaElementSource(audioElemGain);
+        const gainGain = context.createGain();
+        gainSource.connect(gainGain);
+        gainGain.gain.value = 0.5;
+        gainGain.connect(context.destination);
+
+        const fadeSource = context.createMediaElementSource(audioElemFade);
+        fadeGain = context.createGain();
+        fadeSource.connect(fadeGain)
+        fadeGain.gain.value = 0;
+        fadeGain.connect(context.destination);
+
+        return context;
+    }
+
+    const elems = {
+        'play-normal': audioElemNormal,
+        'play-web': {
+            get paused() {
+                return audioElemWeb.paused;
+            },
+            play: () => {
+                getContext().resume();
+                audioElemWeb.play();
+            },
+            pause: () => {
+                audioElemWeb.pause();
+            }
+        },
+        'play-gain': {
+            get paused() {
+                return audioElemGain.paused;
+            },
+            play: () => {
+                getContext().resume();
+                audioElemGain.play();
+            },
+            pause: () => {
+                audioElemGain.pause();
+            }
+        },
+        'play-fade': {
+            get paused() {
+                return audioElemFade.paused;
+            },
+            play: () => {
+                getContext().resume();
+                audioElemFade.play().then(() => {
+                    const now = fadeGain.context.currentTime;
+                    fadeGain.gain.cancelScheduledValues(now);
+                    fadeGain.gain.setValueAtTime(fadeGain.gain.value, now);
+                    fadeGain.gain.linearRampToValueAtTime(1.0, now + 2);
+                    return fadeGain;
+                })
+            },
+            pause: () => {
+                const currentValue = fadeGain.gain.value || 1; // firefox issue with value being 0 always
+                const now = fadeGain.context.currentTime;
+                fadeGain.gain.cancelScheduledValues(now);
+                fadeGain.gain.setValueAtTime(currentValue, now);
+                fadeGain.gain.linearRampToValueAtTime(0, now + 2);
+                setTimeout(() => {
+                    if (fadeGain.gain.value === 0)
+                        audioElemFade.pause();
+                }, 2300);
+            }
+        },
+    };
+    let activeId = null
+    function togglePlay(id) {
+        const button = document.getElementById(id)
+        const audio = elems[id]
+        if (!audio.paused) {
+            activeId = null;
+            audio.pause()
+            button.innerText = 'Play';
+        } else {
+            if (activeId)
+                togglePlay(activeId);
+            activeId = id;
+            audio.play()
+            button.innerText = 'Pause';
+        }
+        button.setAttribute('data-playing', audio.paused ? 'false' : 'true')
+        return audio;
+    }
+    ['play-normal', 'play-web', 'play-gain', 'play-fade'].forEach(id => {
+        document.getElementById(id).onclick = () => togglePlay(id)
+    })
+</script>
+</body>
+</html>
